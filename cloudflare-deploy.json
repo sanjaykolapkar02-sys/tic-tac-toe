@@ -1,0 +1,10 @@
+{
+  "worker_name": "tic-tac-toe-together",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tic-tac-toe-together",
+      "database_id": "2a9581dc-e71b-49eb-8306-daac54a2dcff"
+    }
+  ]
+}
