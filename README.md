@@ -1,6 +1,6 @@
-# Tic Tac Toe Together
+# Play Together
 
-A browser tic-tac-toe game with online rooms, an unbeatable computer opponent, and a same-device two-player mode.
+A browser game room for **rock-paper-scissors and tic-tac-toe**. Share one link with your brother and switch between games inside the same room. Both games also support a computer opponent and two players on the same device.
 
 **Play:** [tic-tac-toe-together.sanjaykolapkar02.workers.dev](https://tic-tac-toe-together.sanjaykolapkar02.workers.dev/)
 
@@ -8,13 +8,24 @@ A browser tic-tac-toe game with online rooms, an unbeatable computer opponent, a
 
 | Mode | Players | State | How it works |
 | --- | --- | --- | --- |
-| Online | Two browsers | Cloudflare D1 | Create a room, share its link, and take turns. |
-| Computer | One browser | Browser memory | Play X against a minimax opponent playing O. |
-| Same device | Two people on one browser | Browser memory | Alternate X and O on the same board. |
+| Online | Two browsers | Cloudflare D1 | Share a room; take turns in tic-tac-toe or lock hidden choices in rock-paper-scissors. |
+| Computer | One browser | Browser memory | Play against minimax in tic-tac-toe or random hands in rock-paper-scissors. |
+| Same device | Two people on one browser | Browser memory | Alternate board moves or pass the device after a hidden hand choice. |
 
-In online mode, the creator gets X and the first other browser to join gets O. A third browser cannot take a seat. The room creator shares the `?room=<id>` URL; the invitee joins from that URL. A returning player keeps the same seat while the browser retains its player cookie. Both players must press **Play again** after a finished round. Scores continue across rounds, and the starting mark alternates between X and O. In computer mode, the human starts each new round as X. Local modes reset on refresh.
+## Play with your brother
 
-The game uses a 3×3 board. A player wins with three marks in any row, column, or diagonal. A full board without a winning line is a tie. Each finished round increments the appropriate X, O, or tie score once. A room can be opened for seven days after creation. The URL alone identifies a room; each player's browser cookie identifies their seat.
+1. Open the live link and choose **Rock-paper-scissors** or **Tic-tac-toe**.
+2. Keep **Online** selected, press **Create a room**, and copy the invite link.
+3. Your brother opens that link on his browser and presses **Join this room**.
+4. In rock-paper-scissors, each player chooses a hand independently. Choices lock immediately and both hands appear only after both players have chosen. The server hides the opponent's hand in API responses as well as in the UI.
+5. After a round, both players press **Play again**. Scores continue across rounds.
+6. To change games, select the other game above the card. Your brother confirms with **Switch game**. The room URL and seats stay the same; the new game starts at round 1 with fresh scores. Either player can cancel or decline a pending switch.
+
+Rock beats scissors, scissors beat paper, and paper beats rock. Identical choices are a tie. The homepage defaults to rock-paper-scissors; `/?game=ttt` opens the tic-tac-toe lobby. Existing room links continue to open their saved game, including rooms created before this update. A room cannot change games until both players have joined.
+
+In online mode, the creator gets Player 1 (X) and the first other browser to join gets Player 2 (O). A third browser cannot take a seat. The room creator shares the `?room=<id>` URL; the invitee joins from that URL. A returning player keeps the same seat while the browser retains its player cookie. Both players must press **Play again** after a finished round. Scores continue across rounds. In tic-tac-toe, the starting mark alternates between X and O; in computer mode, the human starts each new round as X. Local modes reset on refresh. Switching games in a local mode starts a fresh match immediately.
+
+Tic-tac-toe uses a 3×3 board. A player wins with three marks in any row, column, or diagonal. A full board without a winning line is a tie. Each finished round of either game increments the appropriate X, O, or tie score once. A room can be opened for seven days after creation. The URL alone identifies a room; each player's browser cookie identifies their seat.
 
 ## Architecture
 
@@ -27,7 +38,7 @@ flowchart LR
     B -.->|Computer and same-device play| LB[Browser-local game state]
 ```
 
-The UI is a React client in `app/page.tsx`, built with Next.js through Vinext for Cloudflare Workers. It calls the room API at `app/api/rooms/route.ts`. The route handles HTTP, the player cookie, and error responses. `db/rooms.ts` owns room persistence and seat checks. `lib/game.ts` owns board rules, scoring, rematches, and computer move selection. Online game state is authoritative in D1; the browser renders the latest server response. The computer and same-device modes use React state and do not call the room API.
+The UI is a React client in `app/page.tsx`, built with Next.js through Vinext for Cloudflare Workers. It calls the room API at `app/api/rooms/route.ts`. The route handles HTTP, the player cookie, and error responses. `db/rooms.ts` owns room persistence, seat checks, hidden choices, and mutual game switching. `lib/game.ts` owns tic-tac-toe rules and minimax. `lib/arena.ts` owns the shared game types and rock-paper-scissors rules, scoring, and round reset. Online game state is authoritative in D1; the browser renders the latest server response. The computer and same-device modes use React state and do not call the room API.
 
 When an online room is open, each browser sends a `GET` about once per second. The client accepts a response only if its room version is at least as new as the version already displayed. If polling fails, the UI shows **Reconnecting** and pauses moves until it receives a fresh response. Each fetch has a 12-second timeout.
 
@@ -38,11 +49,12 @@ When an online room is open, each browser sends a `GET` about once per second. T
 | `app/page.tsx` and `app/globals.css` | Game screen, room flows, local modes, and styles. |
 | `app/api/rooms/route.ts` | `GET` and `POST` HTTP interface, cookie handling, and response status. |
 | `lib/game.ts` | Pure game rules, outcomes, scoring, round reset, and minimax computer opponent. |
+| `lib/arena.ts` | Game selection, shared state types, RPS outcomes, locked choices, and rematches. |
 | `db/rooms.ts` | D1 queries, player seats, expiry checks, and versioned updates. |
 | `db/schema.ts` and `drizzle/` | Room schema and its checked-in SQL migration. |
 | `cloudflare-deploy.json` | Worker name and existing D1 binding details. |
 | `scripts/prepare-cloudflare-deploy.mjs` | Applies those details to the generated Wrangler config after a build. |
-| `tests/multiplayer.test.mjs` | API checks for joining, turns, scoring, rematches, and races. |
+| `tests/multiplayer.test.mjs` | Both games: API checks for seats, privacy, scoring, rematches, concurrent choices, and switches. |
 
 The remaining `build/`, `scripts/`, and component files support the Vinext and Cloudflare build environment. Generated `dist/`, `node_modules/`, and local Wrangler state are excluded from Git.
 
@@ -57,6 +69,7 @@ All online requests use `/api/rooms`. Responses are JSON and include `Cache-Cont
   "role": "X",
   "joined": true,
   "game": {
+    "kind": "ttt",
     "board": ["X", null, null, null, "O", null, null, null, null],
     "turn": "X",
     "round": 1,
@@ -68,13 +81,17 @@ All online requests use `/api/rooms`. Responses are JSON and include `Cache-Cont
 
 | Request | Purpose | Relevant body or query |
 | --- | --- | --- |
-| `POST /api/rooms` | Create room; creator receives X. | `{ "action": "create" }` |
+| `POST /api/rooms` | Create room; creator receives X. | `{ "action": "create", "kind": "rps" }` (`ttt` is the API default for older clients). |
 | `POST /api/rooms` | Claim O or return the existing seat. | `{ "action": "join", "id": "<room-id>" }` |
 | `GET /api/rooms?id=<room-id>` | Read the current room for an existing player. | Player cookie required. |
 | `POST /api/rooms` | Place a mark at a zero-based board index. | `{ "action": "move", "id": "<room-id>", "index": 4, "version": 3 }` |
 | `POST /api/rooms` | Mark a player ready for the next round. | `{ "action": "ready", "id": "<room-id>", "version": 4 }` |
+| `POST /api/rooms` | Lock a rock-paper-scissors hand. | `{ "action": "choose", "id": "<room-id>", "choice": "rock", "version": 3 }` |
+| `POST /api/rooms` | Request or confirm a game switch. | `{ "action": "switch", "id": "<room-id>", "kind": "ttt", "version": 4 }` |
 
-`move` and `ready` include the version the browser last saw. The API rejects stale versions with HTTP 409, so a delayed tab cannot overwrite a newer move. It also rejects moves before O joins, out-of-turn moves, occupied cells, and moves after the round ends. `ready` is accepted only after a win or tie. The next round begins when both seats are ready.
+For a rock-paper-scissors room, `game` contains `kind: "rps"`, `round`, `scores`, `ready`, `picks: { X, O }`, `submitted: { X, O }`, and `startedAtVersion`. Until both players submit, the opponent's `picks` value is always `null`; `submitted` reveals only whether a hand has been locked. Once both submit, both hands are returned. A pending game switch adds `pendingSwitch: { kind, ready }` to either game's state. Sending `switch` with the current game kind cancels that request. Switching resets scores and round state, retains seats and expiry, and requires no schema migration.
+
+`move`, `ready`, and `switch` include the version the browser last saw. The API rejects stale versions with HTTP 409, so a delayed tab cannot overwrite a newer move. It also rejects moves before O joins, out-of-turn moves, occupied cells, and moves after the round ends. `ready` is accepted only after a win or tie. The next round begins when both seats are ready. RPS `choose` requests can merge when both players submit from the same displayed version. Each choice is immutable, and a request from an earlier round or match is rejected using `startedAtVersion`. Choices cannot be submitted in a tic-tac-toe room, nor board moves in an RPS room.
 
 Expected error statuses are **400** for malformed actions, **403** for an unseated browser, **404** for an invalid or expired room, **409** for a full room or conflicting game action, **413** for a request body over 2 KB, and **503** when storage is unavailable. Errors use `{ "error": "..." }`.
 
@@ -87,7 +104,7 @@ The `rooms` D1 table is defined in `db/schema.ts`:
 | `id` | Random 32-character room ID; primary key. |
 | `x_token` | SHA-256 hash of X's browser token. |
 | `o_token` | Hash of O's token, or `NULL` until someone joins. |
-| `state` | JSON game state: board, turn, round, scores, and ready players. |
+| `state` | JSON state for either game, including scores, readiness, secret RPS picks, and pending switches. |
 | `version` | Integer incremented by each accepted room update. |
 | `expires_at` | Room expiration time in Unix milliseconds. |
 
@@ -139,4 +156,4 @@ node tests/multiplayer.test.mjs
 node node_modules/typescript/bin/tsc --noEmit
 ```
 
-The multiplayer check covers seat assignment, a full room, turn enforcement, a winning round, score persistence after refresh, rematch readiness, stale moves, and concurrent joins.
+The multiplayer check covers seat assignment, a full room, turn enforcement, a winning round, score persistence after refresh, rematch readiness, stale moves, and concurrent joins. It also checks all nine RPS outcomes, server-side choice privacy, locked choices, simultaneous submissions, scoring exactly once, old-round request rejection, legacy tic-tac-toe rooms, and requesting, declining, and confirming game switches while retaining the same room and seats.

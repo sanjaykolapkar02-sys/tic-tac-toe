@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     if (!body || typeof body !== 'object') throw new GameError('Invalid game action.');
     const token = cookie(request) || crypto.randomUUID();
     const hashed = await hash(token);
-    const room = body.action === 'create' ? await createRoom(hashed) : await updateRoom(body.id ?? '', hashed, body.action, body.index, body.version);
+    const room = body.action === 'create' ? await createRoom(hashed, body.kind) : await updateRoom(body.id ?? '', hashed, body.action, body.index, body.version, body.choice, body.kind);
     return Response.json(room, { headers: {
       'Cache-Control': 'no-store',
       'Set-Cookie': `ttt_player=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${new URL(request.url).protocol === 'https:' ? '; Secure' : ''}`,

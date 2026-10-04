@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
-import { freshGame, move, nextRound, outcome, type Game, type Mark } from '../lib/game';
+import { move, nextRound, outcome, type Mark } from '../lib/game';
+import { choose, freshArena, nextRpsRound, rpsOutcome, type ArenaGame, type Choice, type GameKind } from '../lib/arena';
 
 type Row = { id: string; x_token: string; o_token: string | null; state: string; version: number; expires_at: number };
 export class GameError extends Error {
@@ -12,7 +13,19 @@ function database() {
 function view(row: Row, token: string) {
   const role = row.x_token === token ? 'X' : row.o_token === token ? 'O' : null;
   if (!role) throw new GameError('Join this room to play.', 403);
-  return { id: row.id, version: row.version, game: JSON.parse(row.state) as Game, role, joined: Boolean(row.o_token) };
+  const game = parseGame(row.state);
+  if (game.kind === 'rps' && !rpsOutcome(game.picks)) {
+    game.submitted = { X: Boolean(game.picks.X), O: Boolean(game.picks.O) };
+    game.picks[role === 'X' ? 'O' : 'X'] = null;
+  }
+  return { id: row.id, version: row.version, game, role, joined: Boolean(row.o_token) };
+}
+function parseGame(state: string): ArenaGame {
+  const game = JSON.parse(state);
+  return { ...game, kind: game.kind ?? 'ttt' };
+}
+function validateKind(kind: unknown): asserts kind is GameKind {
+  if (kind !== 'ttt' && kind !== 'rps') throw new GameError('Choose a supported game.');
 }
 export async function getRoom(id: string, token: string) {
   const row = await read(id);
@@ -24,9 +37,10 @@ async function read(id: string) {
   if (!row) throw new GameError('This room expired or does not exist. Create a new one.', 404);
   return row;
 }
-export async function createRoom(token: string) {
+export async function createRoom(token: string, kind: GameKind = 'ttt') {
+  validateKind(kind);
   const id = crypto.randomUUID().replaceAll('-', '');
-  const state = JSON.stringify(freshGame());
+  const state = JSON.stringify(freshArena(kind));
   const expires = Date.now() + 7 * 24 * 60 * 60 * 1000;
   await database().batch([
     database().prepare('DELETE FROM rooms WHERE expires_at < ?').bind(Date.now()),
@@ -34,11 +48,11 @@ export async function createRoom(token: string) {
   ]);
   return getRoom(id, token);
 }
-export async function updateRoom(id: string, token: string, action: string, index?: number, version?: number) {
+export async function updateRoom(id: string, token: string, action: string, index?: number, version?: number, choice?: Choice, kind?: GameKind) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const row = await read(id);
     let opponent = row.o_token;
-    let game: Game = JSON.parse(row.state);
+    let game = parseGame(row.state);
     if (action === 'join') {
       if (row.x_token === token || row.o_token === token) return view(row, token);
       if (row.o_token) throw new GameError('This room already has two players. Create another room.', 409);
@@ -47,14 +61,32 @@ export async function updateRoom(id: string, token: string, action: string, inde
       const role: Mark | null = row.x_token === token ? 'X' : row.o_token === token ? 'O' : null;
       if (!role) throw new GameError('You are not a player in this room.', 403);
       if (!row.o_token) throw new GameError('Wait for the second player to join.', 409);
-      if (version !== row.version) throw new GameError('The board changed. Please try again.', 409);
+      // Merge independent choices only within the same RPS round.
+      const mergeChoice = action === 'choose' && game.kind === 'rps' && Number.isInteger(version) && version! >= game.startedAtVersion && version! <= row.version;
+      if (version !== row.version && !mergeChoice) throw new GameError('The game changed. Please try again.', 409);
       if (action === 'move') {
-        try { game = move(game, role, index as number); }
+        if (game.kind !== 'ttt') throw new GameError('This room is playing rock-paper-scissors.', 409);
+        try { game = { ...move(game, role, index as number), kind: 'ttt', pendingSwitch: game.pendingSwitch }; }
+        catch (error) { throw new GameError((error as Error).message, 409); }
+      } else if (action === 'choose') {
+        if (game.kind !== 'rps') throw new GameError('This room is playing tic-tac-toe.', 409);
+        try { game = choose(game, role, choice as Choice); }
         catch (error) { throw new GameError((error as Error).message, 409); }
       } else if (action === 'ready') {
-        if (!outcome(game.board)) throw new GameError('Finish this round first.', 409);
+        if (!(game.kind === 'ttt' ? outcome(game.board) : rpsOutcome(game.picks))) throw new GameError('Finish this round first.', 409);
         if (!game.ready.includes(role)) game.ready.push(role);
-        if (game.ready.length === 2) game = nextRound(game);
+        if (game.ready.length === 2) game = game.kind === 'ttt'
+          ? { ...nextRound(game), kind: 'ttt', pendingSwitch: game.pendingSwitch }
+          : nextRpsRound(game, row.version + 1);
+      } else if (action === 'switch') {
+        validateKind(kind);
+        if (kind === game.kind) delete game.pendingSwitch;
+        else {
+          const pending = game.pendingSwitch?.kind === kind ? game.pendingSwitch : { kind, ready: [] as Mark[] };
+          if (!pending.ready.includes(role)) pending.ready.push(role);
+          game.pendingSwitch = pending;
+          if (pending.ready.length === 2) game = freshArena(kind, row.version + 1);
+        }
       } else throw new GameError('Unknown game action.');
     }
     const changed = await database().prepare('UPDATE rooms SET o_token = ?, state = ?, version = version + 1 WHERE id = ? AND version = ? RETURNING *')
