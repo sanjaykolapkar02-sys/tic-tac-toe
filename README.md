@@ -4,6 +4,14 @@ A browser game room for **rock-paper-scissors and tic-tac-toe**. Share one link 
 
 **Play:** [tic-tac-toe-together.sanjaykolapkar02.workers.dev](https://tic-tac-toe-together.sanjaykolapkar02.workers.dev/)
 
+## Interface
+
+The desktop layout puts game selection, room controls, and match scores beside a larger play area. On phones, controls stack above the game and scores follow it. The game table uses a light surface, with green and warm neutral player cards, clear locked-hand indicators, reveal animations, and highlighted winners. Keyboard focus is visible throughout.
+
+[Lenis](https://github.com/darkroomengineering/lenis) adds smooth desktop wheel scrolling. Touch devices keep native scrolling, and reduced-motion preferences disable smoothing and interface animations, including when the preference changes while the page is open. `components/smooth-scroll.tsx` creates and cleans up the scrolling instance.
+
+Room synchronization currently uses the HTTP protocol described below. Replacing periodic room reads with WebSocket updates is the next system-design stage; this interface update keeps the current protocol.
+
 ## Product specification
 
 | Mode | Players | State | How it works |
@@ -38,7 +46,7 @@ flowchart LR
     B -.->|Computer and same-device play| LB[Browser-local game state]
 ```
 
-The UI is a React client in `app/page.tsx`, built with Next.js through Vinext for Cloudflare Workers. It calls the room API at `app/api/rooms/route.ts`. The route handles HTTP, the player cookie, and error responses. `db/rooms.ts` owns room persistence, seat checks, hidden choices, and mutual game switching. `lib/game.ts` owns tic-tac-toe rules and minimax. `lib/arena.ts` owns the shared game types and rock-paper-scissors rules, scoring, and round reset. Online game state is authoritative in D1; the browser renders the latest server response. The computer and same-device modes use React state and do not call the room API.
+The UI is a React client in `components/game-screen.tsx`, initialized from URL parameters by `app/page.tsx`, and built with Next.js through Vinext for Cloudflare Workers. It calls the room API at `app/api/rooms/route.ts`. The route handles HTTP, the player cookie, and error responses. `db/rooms.ts` owns room persistence, seat checks, hidden choices, and mutual game switching. `lib/game.ts` owns tic-tac-toe rules and minimax. `lib/arena.ts` owns the shared game types and rock-paper-scissors rules, scoring, and round reset. Online game state is authoritative in D1; the browser renders the latest server response. The computer and same-device modes use React state and do not call the room API.
 
 When an online room is open, each browser sends a `GET` about once per second. The client accepts a response only if its room version is at least as new as the version already displayed. If polling fails, the UI shows **Reconnecting** and pauses moves until it receives a fresh response. Each fetch has a 12-second timeout.
 
@@ -46,7 +54,8 @@ When an online room is open, each browser sends a `GET` about once per second. T
 
 | Path | Responsibility |
 | --- | --- |
-| `app/page.tsx` and `app/globals.css` | Game screen, room flows, local modes, and styles. |
+| `app/page.tsx`, `components/game-screen.tsx`, and `app/globals.css` | URL initialization, game screen, room flows, local modes, and styles. |
+| `components/smooth-scroll.tsx` | Lenis desktop scrolling with touch and reduced-motion handling. |
 | `app/api/rooms/route.ts` | `GET` and `POST` HTTP interface, cookie handling, and response status. |
 | `lib/game.ts` | Pure game rules, outcomes, scoring, round reset, and minimax computer opponent. |
 | `lib/arena.ts` | Game selection, shared state types, RPS outcomes, locked choices, and rematches. |
