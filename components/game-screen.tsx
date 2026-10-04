@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Bot, Check, Copy, Gamepad2, Globe, LockKeyhole, Monitor, RotateCcw, Trophy, Users, Wifi, X } from 'lucide-react';
+import { ArrowRight, Bot, Check, Copy, Gamepad2, Globe, Hand, HandFist, LockKeyhole, Monitor, RotateCcw, Scissors, Trophy, Users, Wifi, X } from 'lucide-react';
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from 'motion/react';
 import { Button } from './animate-ui/primitives/buttons/button';
 import { CountingNumber } from './animate-ui/primitives/texts/counting-number';
 import { Fade } from './animate-ui/primitives/effects/fade';
+import { AuroraBackground, BorderBeam } from './inspira-ui/effects';
 import { SmoothScroll } from './smooth-scroll';
 import { computerMove, move, nextRound, outcome, type Mark } from '../lib/game';
 import { choices, choose, freshArena, gameNames, nextRpsRound, rpsOutcome, type ArenaGame, type Choice, type GameKind } from '../lib/arena';
@@ -13,7 +14,11 @@ import { choices, choose, freshArena, gameNames, nextRpsRound, rpsOutcome, type 
 type Room = { id: string; version: number; game: ArenaGame; role: Mark; joined: boolean };
 type Mode = 'online' | 'cpu' | 'friend';
 const positions = ['Top left', 'Top center', 'Top right', 'Middle left', 'Middle center', 'Middle right', 'Bottom left', 'Bottom center', 'Bottom right'];
-const hands = { rock: '✊', paper: '✋', scissors: '✌️' };
+const handIcons = { rock: HandFist, paper: Hand, scissors: Scissors };
+function HandIcon({ choice }: { choice: Choice }) {
+  const Icon = handIcons[choice];
+  return <Icon className="gesture-icon" strokeWidth={1.5} aria-hidden="true" />;
+}
 const labels = { rock: 'Rock', paper: 'Paper', scissors: 'Scissors' };
 
 export default function GameScreen({ initialKind, initialRoom }: { initialKind: GameKind; initialRoom: string }) {
@@ -153,33 +158,26 @@ export default function GameScreen({ initialKind, initialRoom }: { initialKind: 
   }
   if (winner) status = winner === 'tie' ? "It's a tie!" : isOnline ? winner === room?.role ? 'You win!' : 'Your brother wins!' : mode === 'cpu' ? winner === 'X' ? 'You win!' : 'Computer wins!' : `Player ${winner === 'X' ? '1' : '2'} wins!`;
   if (handoff && !isOnline && kind === 'rps' && !winner) status = 'Player 1 is ready. Pass the device.';
-  const symbol = winner === 'tie' ? '=' : kind === 'rps' ? '✌️' : (winner || (game.kind === 'ttt' ? game.turn : 'X')) === 'X' ? '×' : '○';
+  const symbol = winner === 'tie' ? '=' : kind === 'rps' ? <HandFist size={18} /> : (winner || (game.kind === 'ttt' ? game.turn : 'X')) === 'X' ? '\u00d7' : '\u25cb';
   const pending = game.pendingSwitch;
   const rules = kind === 'rps' ? 'Rock beats scissors. Scissors beat paper. Paper beats rock.' : 'Three in a row wins.';
   const canPick = !busy && !winner && !handoff && game.kind === 'rps' && (!isOnline || Boolean(room?.joined && connected && !game.submitted[role]));
 
   return <MotionConfig reducedMotion="user"><main className="app-shell">
+    <AuroraBackground />
     <SmoothScroll />
     <header className="masthead">
       <div className="brand"><span className="brand-mark" aria-hidden="true"><Gamepad2 size={23} /></span><h1>play<span>together</span><span className="brand-dot">.</span></h1></div>
-      <span className="header-note"><Users size={15} aria-hidden="true" /> Your sibling arena</span>
+      <span className="header-note"><span className="live-dot" /> TWO-PLAYER ARCADE</span>
     </header>
-
-    <LayoutGroup id="game-switch">
-      <nav className="game-picker" aria-label="Choose game">
-        {(['rps', 'ttt'] as const).map(value => <Button key={value} hoverScale={1} tapScale={0.99} className={['game-tab', kind === value ? 'active' : ''].join(' ')} aria-pressed={kind === value} disabled={busy || (isOnline && Boolean((room && (!room.joined || !connected)) || (!room && invite)))} onClick={() => selectGame(value)}>
-          {kind === value && <motion.span className="game-tab-highlight" aria-hidden="true" layoutId={reducedMotion ? undefined : 'active-game'} transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 32 }} />}
-          <span className="game-tab-icon" aria-hidden="true">{value === 'rps' ? '✌️' : '× ○'}</span><span>{gameNames[value]}</span>
-        </Button>)}
-      </nav>
-    </LayoutGroup>
-
-    <section className={['game-card', kind, winner ? 'round-finished' : ''].join(' ')} aria-label={gameNames[kind] + ' game'}>
-      <div className="arena-heading"><div><p className="section-label">LET’S PLAY</p><h2>{kind === 'rps' ? 'Rock, paper, scissors.' : 'Tic-tac-toe.'}</h2></div><span className="round-label"><span>Round</span>{String(game.round).padStart(2, '0')}</span></div>
+    <div className="intro"><div><p className="intro-kicker">SMALL GAMES. BIG RIVALRIES.</p><h2>A little rivalry.<br />{' '}<span>A lot of fun.</span></h2></div><p>Your brother. Your favorite games.<br />One link to settle the score.</p></div>
+    <div className="arcade-layout">
+      <aside className="lobby-card" aria-label="Players and room">
+        <div className="lobby-title"><p className="section-label">PLAY YOUR WAY</p><h2>Who&apos;s up next?</h2></div>
       <div className="arena-toolbar">
         <LayoutGroup id="play-mode"><div className="mode-switch" role="group" aria-label="Choose game mode">
-          {([['online', 'Online', Globe], ['cpu', 'Computer', Bot], ['friend', 'Same device', Monitor]] as const).map(([value, label, Icon]) => <Button hoverScale={1} key={value} className={['mode-button', mode === value ? 'active' : ''].join(' ')} disabled={busy} onClick={() => switchMode(value)} aria-pressed={mode === value}>
-            {mode === value && <motion.span className="mode-highlight" aria-hidden="true" layoutId={reducedMotion ? undefined : 'active-mode'} transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 32 }} />}<Icon size={15} aria-hidden="true" /><span>{label}</span>
+          {([['online', 'Online', Globe], ['cpu', 'Computer', Bot], ['friend', 'Same device', Monitor]] as const).map(([value, label, Icon]) => <Button hoverScale={1} key={value} className={['mode-button', mode === value ? 'active' : ''].join(' ')} disabled={busy} onClick={() => switchMode(value)} aria-label={label} aria-pressed={mode === value}>
+            {mode === value && <motion.span className="mode-highlight" aria-hidden="true" layoutId={reducedMotion ? undefined : 'active-mode'} transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 32 }} />}<Icon size={18} aria-hidden="true" /><span>{label}<small>{value === 'online' ? 'Invite your brother' : value === 'cpu' ? 'A quick solo round' : 'Pass and play'}</small></span><span className="mode-dot" aria-hidden="true" />
           </Button>)}
         </div></LayoutGroup>
         {isOnline ? (room || invite) && <Button className="text-button" disabled={busy} onClick={leave}>Exit room <X size={14} aria-hidden="true" /></Button> : <Button className="text-button" onClick={() => { setLocal(freshArena(kind)); setHandoff(false); }}>New match <RotateCcw size={14} aria-hidden="true" /></Button>}
@@ -201,29 +199,51 @@ export default function GameScreen({ initialKind, initialRoom }: { initialKind: 
         {error && <Fade className="error-message" key="game-error" role="alert">{error}</Fade>}
       </AnimatePresence>
 
+
+        <div className="match-heading"><span>MATCH SCORE</span><Trophy size={14} aria-hidden="true" /></div>
       <div className="scoreboard" aria-label="Match score">
         {(['X', 'ties', 'O'] as const).map(key => <div key={key} className={'score-panel score-' + (key === 'ties' ? 'tie' : key.toLowerCase())}><span className="score-heading">{key === 'ties' ? 'Ties' : isOnline ? !room ? 'Player ' + (key === 'X' ? '1' : '2') : room.role === key ? 'You' : 'Brother' : mode === 'cpu' ? key === 'X' ? 'You' : 'Computer' : 'Player ' + (key === 'X' ? '1' : '2')}</span><strong aria-label={String(game.scores[key])}>{reducedMotion ? game.scores[key] : <CountingNumber number={game.scores[key]} initiallyStable aria-hidden="true" />}</strong><span className="score-caption">{key === 'ties' ? 'draws' : 'wins'}</span></div>)}
       </div>
+
+
+        <p className="lobby-footnote"><LockKeyhole size={14} aria-hidden="true" /> Just you two. No account needed.</p>
+      </aside>
+      <section className={['game-card', kind, winner ? 'round-finished' : ''].join(' ')} aria-label={gameNames[kind] + ' game'}>
+        <BorderBeam />
+      <div className="arena-heading"><div><p className="section-label">LET’S PLAY</p><h2>{kind === 'rps' ? 'Rock, paper, scissors.' : 'Tic-tac-toe.'}</h2></div><span className="round-label"><span>Round</span>{String(game.round).padStart(2, '0')}</span></div>
+
+    <LayoutGroup id="game-switch">
+      <nav className="game-picker" aria-label="Choose game">
+        {(['rps', 'ttt'] as const).map(value => <Button key={value} hoverScale={1} tapScale={0.99} className={['game-tab', kind === value ? 'active' : ''].join(' ')} aria-pressed={kind === value} disabled={busy || (isOnline && Boolean((room && (!room.joined || !connected)) || (!room && invite)))} onClick={() => selectGame(value)}>
+          {kind === value && <motion.span className="game-tab-highlight" aria-hidden="true" layoutId={reducedMotion ? undefined : 'active-game'} transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 32 }} />}
+          <span className="game-tab-icon" aria-hidden="true">{value === 'rps' ? <Scissors size={18} /> : <span>{'\u00d7\u25cb'}</span>}</span><span>{gameNames[value]}</span>
+        </Button>)}
+      </nav>
+    </LayoutGroup>
+
 
       <div className="play-area">
         <div className={['turn-row', winner ? 'result-row' : ''].join(' ')}><span className="turn-indicator" aria-hidden="true">{winner ? winner === 'tie' ? '=' : <Trophy size={19} /> : symbol}</span><p className="status" role="status" aria-live="polite">{status}</p></div>
         <AnimatePresence initial={false} mode="wait">
           <Fade key={kind} className="game-surface" initial={reducedMotion ? false : { opacity: 0 }} transition={{ duration: reducedMotion ? 0 : 0.18 }}>
-            {game.kind === 'ttt' ? <div className="board" aria-label="Tic-tac-toe board">{game.board.map((mark, index) => <Button hoverScale={1.035} key={index} className={['cell', mark?.toLowerCase() || '', tttResult?.line.includes(index) ? 'winning' : ''].join(' ')} disabled={!playable || Boolean(mark)} aria-label={positions[index] + ', ' + (mark || 'empty')} onClick={() => isOnline ? void act('move', { index }) : setLocal(previous => previous.kind === 'ttt' ? { ...move(previous, previous.turn, index), kind: 'ttt' } : previous)}>{mark && <motion.span initial={reducedMotion ? false : { scale: 0.65, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: reducedMotion ? 0 : 0.2 }} aria-hidden="true">{mark === 'X' ? '×' : '○'}</motion.span>}</Button>)}</div> : <>
+            {game.kind === 'ttt' ? <div className="board" aria-label="Tic-tac-toe board">{game.board.map((mark, index) => <Button hoverScale={1.035} key={index} className={['cell', mark?.toLowerCase() || '', tttResult?.line.includes(index) ? 'winning' : ''].join(' ')} disabled={!playable || Boolean(mark)} aria-label={positions[index] + ', ' + (mark || 'empty')} onClick={() => isOnline ? void act('move', { index }) : setLocal(previous => previous.kind === 'ttt' ? { ...move(previous, previous.turn, index), kind: 'ttt' } : previous)}>{mark && <motion.span initial={reducedMotion ? false : { scale: 0.65, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: reducedMotion ? 0 : 0.2 }} aria-hidden="true">{mark === 'X' ? '\u00d7' : '\u25cb'}</motion.span>}</Button>)}</div> : <>
               <div className="hands-reveal" aria-label="Round choices">{(['X', 'O'] as const).map(seat => {
                 const visible = Boolean(winner || (isOnline && room?.role === seat));
                 const choice = visible ? game.picks[seat] : null;
                 const name = isOnline ? !room ? 'Player ' + (seat === 'X' ? '1' : '2') : room.role === seat ? 'You' : 'Brother' : mode === 'cpu' ? seat === 'X' ? 'You' : 'Computer' : 'Player ' + (seat === 'X' ? '1' : '2');
-                return <motion.div key={seat} className={['hand-panel', 'player-' + seat.toLowerCase(), winner === seat ? 'hand-winner' : ''].join(' ')} animate={{ borderColor: winner === seat ? '#8b83ff' : '#2b2d40' }} transition={{ duration: reducedMotion ? 0 : 0.25 }}><div className="hand-heading"><span className="player-avatar" aria-hidden="true">{seat === 'X' ? 'P1' : 'P2'}</span><span>{name}</span>{winner === seat && <span className="winner-tag"><Trophy size={12} aria-hidden="true" /> Winner</span>}</div><div className="hand-orbit"><AnimatePresence initial={false} mode="wait"><motion.strong key={choice || (game.submitted[seat] ? 'locked' : 'waiting')} className="hand-visual" initial={reducedMotion ? false : { opacity: 0, scale: 0.75, rotate: -12 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: reducedMotion ? 1 : 0.9 }} transition={{ duration: reducedMotion ? 0 : 0.24 }} aria-hidden="true">{choice ? hands[choice] : game.submitted[seat] ? <LockKeyhole size={40} strokeWidth={1.4} /> : <span className="waiting-hand">?</span>}</motion.strong></AnimatePresence></div><p>{choice ? labels[choice] : game.submitted[seat] ? 'Locked in' : !isOnline || room?.joined ? 'Choosing…' : 'Ready when you are'}</p></motion.div>;
+                return <motion.div key={seat} className={['hand-panel', 'player-' + seat.toLowerCase(), winner === seat ? 'hand-winner' : ''].join(' ')} animate={{ borderColor: winner === seat ? '#547cf5' : seat === 'X' ? '#d9e4fa' : '#f0dfcc' }} transition={{ duration: reducedMotion ? 0 : 0.25 }}><div className="hand-heading"><span className="player-avatar" aria-hidden="true">{seat === 'X' ? 'P1' : 'P2'}</span><span>{name}</span>{winner === seat && <span className="winner-tag"><Trophy size={12} aria-hidden="true" /> Winner</span>}</div><div className="hand-orbit"><AnimatePresence initial={false} mode="wait"><motion.strong key={choice || (game.submitted[seat] ? 'locked' : 'waiting')} className="hand-visual" initial={reducedMotion ? false : { opacity: 0, scale: 0.75, rotate: -12 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: reducedMotion ? 1 : 0.9 }} transition={{ duration: reducedMotion ? 0 : 0.24 }} aria-hidden="true">{choice ? <HandIcon choice={choice} /> : game.submitted[seat] ? <LockKeyhole size={40} strokeWidth={1.4} /> : <span className="waiting-hand">?</span>}</motion.strong></AnimatePresence></div><p>{choice ? labels[choice] : game.submitted[seat] ? 'Locked in' : !isOnline || room?.joined ? 'Choosing…' : 'Ready when you are'}</p></motion.div>;
               })}<span className="versus" aria-hidden="true">VS</span></div>
-              {handoff && !isOnline && !winner ? <Fade className="handoff"><LockKeyhole size={22} aria-hidden="true" /><p>Player 1’s hand is locked.<span>Pass the device to Player 2.</span></p><Button className="primary-button" onClick={() => setHandoff(false)}>Player 2 is ready <ArrowRight size={16} aria-hidden="true" /></Button></Fade> : <><div className="choice-heading"><span>{winner ? 'Round complete' : 'Choose your hand'}</span><span><LockKeyhole size={13} aria-hidden="true" />{winner ? 'Both hands revealed' : 'Locked until both pick'}</span></div><div className="choice-grid" aria-label="Choose your hand">{choices.map(choice => <Button key={choice} hoverScale={1.035} tapScale={0.95} className={['choice-button', isOnline && game.picks[role] === choice ? 'chosen' : ''].join(' ')} disabled={!canPick} onClick={() => pick(choice)}><span className="choice-emoji" aria-hidden="true">{hands[choice]}</span><span className="choice-label">{labels[choice]}</span>{isOnline && game.picks[role] === choice && <Check className="choice-check" size={15} aria-hidden="true" />}</Button>)}</div></>}
+              {handoff && !isOnline && !winner ? <Fade className="handoff"><LockKeyhole size={22} aria-hidden="true" /><p>Player 1’s hand is locked.<span>Pass the device to Player 2.</span></p><Button className="primary-button" onClick={() => setHandoff(false)}>Player 2 is ready <ArrowRight size={16} aria-hidden="true" /></Button></Fade> : <><div className="choice-heading"><span>{winner ? 'Round complete' : 'Choose your hand'}</span><span><LockKeyhole size={13} aria-hidden="true" />{winner ? 'Both hands revealed' : 'Locked until both pick'}</span></div><div className="choice-grid" aria-label="Choose your hand">{choices.map(choice => <Button key={choice} hoverScale={1.035} tapScale={0.95} className={['choice-button', isOnline && game.picks[role] === choice ? 'chosen' : ''].join(' ')} disabled={!canPick} onClick={() => pick(choice)}><span className="choice-emoji" aria-hidden="true"><HandIcon choice={choice} /></span><span className="choice-label">{labels[choice]}</span>{isOnline && game.picks[role] === choice && <Check className="choice-check" size={15} aria-hidden="true" />}</Button>)}</div></>}
             </>}
           </Fade>
         </AnimatePresence>
         {isOnline ? <Button className="next-button" disabled={!winner || busy || ready || !connected} onClick={() => void act('ready')}><RotateCcw size={17} aria-hidden="true" />{ready ? 'Waiting for your brother…' : winner && game.ready.length ? 'Play again — brother is ready' : 'Play again'}</Button> : <Button className="next-button" disabled={kind === 'rps' && !winner} onClick={advance}><RotateCcw size={17} aria-hidden="true" />Next round</Button>}
       </div>
       <p className="rules-strip">{rules}</p>
-    </section>
+
+      </section>
+    </div>
     <footer className="footer-note"><span>Two games. One good rivalry.</span><span>{isOnline ? <><Wifi size={13} aria-hidden="true" />{room ? connected ? 'Room connected' : 'Reconnecting' : 'Invite links last 7 days'}</> : <><Users size={13} aria-hidden="true" />{mode === 'cpu' ? 'Computer mode' : 'Same-device mode'}</>}</span></footer>
+
   </main></MotionConfig>;
 }

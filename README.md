@@ -6,9 +6,11 @@ A browser game room for **rock-paper-scissors and tic-tac-toe**. Share one link 
 
 ## Interface
 
-The interface uses a centered dark arena with game tabs, a sliding mode selector, compact room controls, match scores, and large hand cards. Buttons respond to hover and presses, hand choices animate into view, winning cards are highlighted, and score changes use animated counters. Controls and cards scale down on phones. Keyboard focus is visible throughout.
+The interface uses a light arcade layout with room controls and match scores beside the game on desktop, and a stacked layout on phones. Blue and amber player cards, vector hand icons, clear game tabs, and visible keyboard focus keep each round easy to follow.
 
-The button, fade, counting-number, and visibility-hook sources in `components/animate-ui/` come from [Animate UI](https://github.com/imskyleen/animate-ui), with local adaptations for native buttons, server rendering, and reduced motion. The upstream license is retained in `components/animate-ui/LICENSE.md`. Motion provides the animation runtime; game and mode indicators use shared layout animations. Reduced-motion preferences disable transforms and score animations.
+[Inspira UI](https://github.com/unovue/inspira-ui) is a Vue/Nuxt collection. Its AuroraBackground, BorderBeam, and ShimmerButton effects are adapted to React and plain CSS here, rather than installing Vue into the app. React decorative layers live in `components/inspira-ui/effects.tsx`; the matching animation styles live in `app/globals.css`. The upstream MIT notice is preserved in `components/inspira-ui/LICENSE.md`.
+
+The button, fade, counting-number, and visibility-hook sources in `components/animate-ui/` come from [Animate UI](https://github.com/imskyleen/animate-ui), with local adaptations for native buttons, server rendering, and reduced motion. The upstream license is retained in `components/animate-ui/LICENSE.md`. Motion provides hand reveals, score counters, and sliding game/mode indicators. Reduced-motion preferences disable decorative motion, transforms, and score animations.
 
 [Lenis](https://github.com/darkroomengineering/lenis) adds smooth desktop wheel scrolling. Touch devices keep native scrolling, and reduced-motion preferences disable smoothing and interface animations, including when the preference changes while the page is open. `components/smooth-scroll.tsx` creates and cleans up the scrolling instance.
 
@@ -58,6 +60,7 @@ When an online room is open, each browser sends a `GET` about once per second. T
 | --- | --- |
 | `app/page.tsx`, `components/game-screen.tsx`, and `app/globals.css` | URL initialization, game screen, room flows, local modes, and styles. |
 | `components/smooth-scroll.tsx` | Lenis desktop scrolling with touch and reduced-motion handling. |
+| `components/inspira-ui/` | React adaptations of Inspira UI visual effects and the upstream MIT license. |
 | `components/animate-ui/` | Adapted Animate UI primitives, visibility hook, and upstream license. |
 | `app/api/rooms/route.ts` | `GET` and `POST` HTTP interface, cookie handling, and response status. |
 | `lib/game.ts` | Pure game rules, outcomes, scoring, round reset, and minimax computer opponent. |
