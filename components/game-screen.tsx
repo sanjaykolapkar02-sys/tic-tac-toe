@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Copy, Gamepad2, LockKeyhole, RotateCcw, Users, Wifi, X } from 'lucide-react';
+import { ArrowRight, Bot, Check, Copy, Gamepad2, Globe, LockKeyhole, Monitor, RotateCcw, Trophy, Users, Wifi, X } from 'lucide-react';
+import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from 'motion/react';
+import { Button } from './animate-ui/primitives/buttons/button';
+import { CountingNumber } from './animate-ui/primitives/texts/counting-number';
+import { Fade } from './animate-ui/primitives/effects/fade';
 import { SmoothScroll } from './smooth-scroll';
 import { computerMove, move, nextRound, outcome, type Mark } from '../lib/game';
 import { choices, choose, freshArena, gameNames, nextRpsRound, rpsOutcome, type ArenaGame, type Choice, type GameKind } from '../lib/arena';
@@ -36,6 +40,7 @@ export default function GameScreen({ initialKind, initialRoom }: { initialKind: 
   const role = isOnline ? room?.role ?? 'X' : localRole;
   const ready = Boolean(room && game.ready.includes(room.role));
   const roomId = room?.id;
+  const reducedMotion = useReducedMotion();
 
   async function request(method: string, body?: object, id?: string) {
     const response = await fetch(`/api/rooms${id ? `?id=${encodeURIComponent(id)}` : ''}`, {
@@ -153,82 +158,72 @@ export default function GameScreen({ initialKind, initialRoom }: { initialKind: 
   const rules = kind === 'rps' ? 'Rock beats scissors. Scissors beat paper. Paper beats rock.' : 'Three in a row wins.';
   const canPick = !busy && !winner && !handoff && game.kind === 'rps' && (!isOnline || Boolean(room?.joined && connected && !game.submitted[role]));
 
-  return <main className="app-shell">
+  return <MotionConfig reducedMotion="user"><main className="app-shell">
     <SmoothScroll />
     <header className="masthead">
-      <div className="brand"><div className="brand-mark" aria-hidden="true"><Gamepad2 size={24} /></div><h1>play<span>together.</span></h1></div>
-      <p className="header-note"><span aria-hidden="true" /> A little friendly competition.</p>
+      <div className="brand"><span className="brand-mark" aria-hidden="true"><Gamepad2 size={23} /></span><h1>play<span>together</span><span className="brand-dot">.</span></h1></div>
+      <span className="header-note"><Users size={15} aria-hidden="true" /> Your sibling arena</span>
     </header>
 
-    <div className="workspace">
-      <aside className="lobby-sidebar" aria-label="Game setup">
-        <section className="setup-panel">
-          <p className="section-label">CHOOSE YOUR GAME</p>
-          <nav className="game-picker" aria-label="Choose game">
-            {(['rps', 'ttt'] as const).map((value, index) => <button key={value} className={['game-tab', kind === value ? 'active' : ''].join(' ')} aria-pressed={kind === value} disabled={busy || (isOnline && Boolean((room && (!room.joined || !connected)) || (!room && invite)))} onClick={() => selectGame(value)}>
-              <span className="game-tab-icon" aria-hidden="true">{value === 'rps' ? '✌️' : '×○'}</span>
-              <span className="game-tab-copy"><span>{gameNames[value]}</span><small>{value === 'rps' ? 'Pick. Lock. Reveal.' : 'Three in a row.'}</small></span>
-              <span className="game-tab-number" aria-hidden="true">{kind === value ? <ArrowRight size={16} /> : '0' + (index + 1)}</span>
-            </button>)}
-          </nav>
-        </section>
+    <LayoutGroup id="game-switch">
+      <nav className="game-picker" aria-label="Choose game">
+        {(['rps', 'ttt'] as const).map(value => <Button key={value} hoverScale={1} tapScale={0.99} className={['game-tab', kind === value ? 'active' : ''].join(' ')} aria-pressed={kind === value} disabled={busy || (isOnline && Boolean((room && (!room.joined || !connected)) || (!room && invite)))} onClick={() => selectGame(value)}>
+          {kind === value && <motion.span className="game-tab-highlight" aria-hidden="true" layoutId={reducedMotion ? undefined : 'active-game'} transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 32 }} />}
+          <span className="game-tab-icon" aria-hidden="true">{value === 'rps' ? '✌️' : '× ○'}</span><span>{gameNames[value]}</span>
+        </Button>)}
+      </nav>
+    </LayoutGroup>
 
-        <section className="session-panel" aria-label="Players and room">
-          <div className="card-top"><p className="section-label">HOW ARE WE PLAYING?</p>
-            {isOnline ? (room || invite) && <button className="text-button" disabled={busy} onClick={leave}>Exit room <X size={13} aria-hidden="true" /></button> : <button className="text-button" onClick={() => { setLocal(freshArena(kind)); setHandoff(false); }}>New match <RotateCcw size={13} aria-hidden="true" /></button>}
-          </div>
-          <div className="mode-switch" role="group" aria-label="Choose game mode">
-            {([['online', 'Online'], ['cpu', 'Computer'], ['friend', 'Same device']] as const).map(([value, label]) => <button key={value} className={['mode-button', mode === value ? 'active' : ''].join(' ')} disabled={busy} onClick={() => switchMode(value)} aria-pressed={mode === value}>{label}</button>)}
-          </div>
+    <section className={['game-card', kind, winner ? 'round-finished' : ''].join(' ')} aria-label={gameNames[kind] + ' game'}>
+      <div className="arena-heading"><div><p className="section-label">LET’S PLAY</p><h2>{kind === 'rps' ? 'Rock, paper, scissors.' : 'Tic-tac-toe.'}</h2></div><span className="round-label"><span>Round</span>{String(game.round).padStart(2, '0')}</span></div>
+      <div className="arena-toolbar">
+        <LayoutGroup id="play-mode"><div className="mode-switch" role="group" aria-label="Choose game mode">
+          {([['online', 'Online', Globe], ['cpu', 'Computer', Bot], ['friend', 'Same device', Monitor]] as const).map(([value, label, Icon]) => <Button hoverScale={1} key={value} className={['mode-button', mode === value ? 'active' : ''].join(' ')} disabled={busy} onClick={() => switchMode(value)} aria-pressed={mode === value}>
+            {mode === value && <motion.span className="mode-highlight" aria-hidden="true" layoutId={reducedMotion ? undefined : 'active-mode'} transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 32 }} />}<Icon size={15} aria-hidden="true" /><span>{label}</span>
+          </Button>)}
+        </div></LayoutGroup>
+        {isOnline ? (room || invite) && <Button className="text-button" disabled={busy} onClick={leave}>Exit room <X size={14} aria-hidden="true" /></Button> : <Button className="text-button" onClick={() => { setLocal(freshArena(kind)); setHandoff(false); }}>New match <RotateCcw size={14} aria-hidden="true" /></Button>}
+      </div>
 
-          {isOnline ? <div className="online-panel">
-            {!room ? <>
-              <div className="panel-icon" aria-hidden="true"><Users size={20} /></div>
-              <h2>{invite ? 'Your seat is waiting.' : 'Bring your brother.'}</h2>
-              <p>{invite ? 'Join the room and let the rivalry begin.' : 'Create a room. Share the link. Settle it with a game.'}</p>
-              <div className="lobby-actions"><button className="primary-button" disabled={busy} onClick={() => void act(invite ? 'join' : 'create', invite ? { id: invite } : {})}>{busy ? 'Connecting…' : invite ? 'Join this room' : 'Create a room'}<ArrowRight size={17} aria-hidden="true" /></button>{invite && <button className="secondary-button" disabled={busy} onClick={() => void act('create')}>Create another room</button>}</div>
-              {!invite && <form className="join-form" onSubmit={event => { event.preventDefault(); join(); }}><label htmlFor="invite-input">Got an invite?</label><div><input id="invite-input" placeholder="Paste a link or room code" value={joinInput} onChange={event => setJoinInput(event.target.value)} autoComplete="off" required /><button className="join-button" disabled={busy} aria-label="Join"> <ArrowRight size={18} aria-hidden="true" /></button></div></form>}
-            </> : <>
-              <div className="room-heading"><span className={['connection', connected ? 'connected' : ''].join(' ')}><span aria-hidden="true" />{connected ? room.joined ? 'Both players joined' : 'Room is ready' : 'Reconnecting…'}</span><span className="seat">P{room.role === 'X' ? '1' : '2'}</span></div>
-              <h2>{room.joined ? 'The room is yours.' : 'One more player.'}</h2>
-              <p>{room.joined ? 'Pick a game above to switch together. Your invite stays the same.' : 'Send the invite to your brother. His seat is waiting.'}</p>
-              <div className="invite-link"><input aria-label="Invite link" value={link} readOnly onFocus={event => event.target.select()} /><button className="secondary-button" aria-label={copied ? 'Copied!' : 'Copy link'} onClick={() => void copyLink()}>{copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}{copied ? 'Copied!' : 'Copy link'}</button></div>
-              {!connected && <p className="room-hint" role="status">Moves are paused while we reconnect. Your game is saved.</p>}
-              <p className="room-hint">You’re Player {room.role === 'X' ? '1' : '2'}. Links last 7 days.</p>
+      {isOnline ? <div className="online-panel">
+        {!room ? <>
+          <div className="lobby-row"><div><h3>{invite ? 'You’ve got an invite.' : 'Play with your brother.'}</h3><p>{invite ? 'Join his room to get started.' : 'One room. One invite. Two players.'}</p></div><div className="lobby-actions"><Button className="primary-button" disabled={busy} onClick={() => void act(invite ? 'join' : 'create', invite ? { id: invite } : {})}>{busy ? 'Connecting…' : invite ? 'Join this room' : 'Create a room'}<ArrowRight size={16} aria-hidden="true" /></Button>{invite && <Button className="secondary-button" disabled={busy} onClick={() => void act('create')}>New room</Button>}</div></div>
+          {!invite && <details className="join-details"><summary>Already have an invite?</summary><form className="join-form" onSubmit={event => { event.preventDefault(); join(); }}><label className="sr-only" htmlFor="invite-input">Invite link or room code</label><input id="invite-input" placeholder="Paste your invite link or room code" value={joinInput} onChange={event => setJoinInput(event.target.value)} autoComplete="off" required /><Button type="submit" className="secondary-button" disabled={busy}>Join <ArrowRight size={15} aria-hidden="true" /></Button></form></details>}
+        </> : <>
+          <div className="room-heading"><span className={['connection', connected ? 'connected' : ''].join(' ')}><span aria-hidden="true" />{connected ? room.joined ? 'Both players joined' : 'Waiting for your brother' : 'Reconnecting…'}</span><span className="seat">You’re Player {room.role === 'X' ? '1' : '2'}</span></div>
+          <div className="invite-link"><input aria-label="Invite link" value={link} readOnly onFocus={event => event.target.select()} /><Button className="secondary-button" onClick={() => void copyLink()}>{copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}{copied ? 'Copied!' : 'Copy link'}</Button></div>
+          {!connected && <p className="room-hint" role="status">Moves are paused while we reconnect. Your game is saved.</p>}
+        </>}
+      </div> : <p className="local-note">{mode === 'cpu' ? kind === 'rps' ? 'Choose a hand. The computer picks randomly.' : 'You play X. The computer plays O.' : kind === 'rps' ? 'Pick your hand, then pass the device. Both choices stay secret until the reveal.' : 'Take turns on the same board. Player 1 is X; Player 2 is O.'}</p>}
+
+      <AnimatePresence initial={false}>
+        {isOnline && room && pending && <Fade className="switch-prompt" key="game-request" role="status" initial={reducedMotion ? false : { opacity: 0 }}><p>{pending.ready.includes(room.role) ? 'Switch requested. Waiting for your brother.' : 'Your brother wants to play ' + gameNames[pending.kind] + '.'}<span>A switch starts a new match with fresh scores.</span></p><div>{!pending.ready.includes(room.role) && <Button className="primary-button" disabled={busy || !connected} onClick={() => void act('switch', { kind: pending.kind })}>Switch game</Button>}<Button className="secondary-button" disabled={busy || !connected} onClick={() => void act('switch', { kind })}>{pending.ready.includes(room.role) ? 'Cancel switch' : 'Keep this game'}</Button></div></Fade>}
+        {error && <Fade className="error-message" key="game-error" role="alert">{error}</Fade>}
+      </AnimatePresence>
+
+      <div className="scoreboard" aria-label="Match score">
+        {(['X', 'ties', 'O'] as const).map(key => <div key={key} className={'score-panel score-' + (key === 'ties' ? 'tie' : key.toLowerCase())}><span className="score-heading">{key === 'ties' ? 'Ties' : isOnline ? !room ? 'Player ' + (key === 'X' ? '1' : '2') : room.role === key ? 'You' : 'Brother' : mode === 'cpu' ? key === 'X' ? 'You' : 'Computer' : 'Player ' + (key === 'X' ? '1' : '2')}</span><strong aria-label={String(game.scores[key])}>{reducedMotion ? game.scores[key] : <CountingNumber number={game.scores[key]} initiallyStable aria-hidden="true" />}</strong><span className="score-caption">{key === 'ties' ? 'draws' : 'wins'}</span></div>)}
+      </div>
+
+      <div className="play-area">
+        <div className={['turn-row', winner ? 'result-row' : ''].join(' ')}><span className="turn-indicator" aria-hidden="true">{winner ? winner === 'tie' ? '=' : <Trophy size={19} /> : symbol}</span><p className="status" role="status" aria-live="polite">{status}</p></div>
+        <AnimatePresence initial={false} mode="wait">
+          <Fade key={kind} className="game-surface" initial={reducedMotion ? false : { opacity: 0 }} transition={{ duration: reducedMotion ? 0 : 0.18 }}>
+            {game.kind === 'ttt' ? <div className="board" aria-label="Tic-tac-toe board">{game.board.map((mark, index) => <Button hoverScale={1.035} key={index} className={['cell', mark?.toLowerCase() || '', tttResult?.line.includes(index) ? 'winning' : ''].join(' ')} disabled={!playable || Boolean(mark)} aria-label={positions[index] + ', ' + (mark || 'empty')} onClick={() => isOnline ? void act('move', { index }) : setLocal(previous => previous.kind === 'ttt' ? { ...move(previous, previous.turn, index), kind: 'ttt' } : previous)}>{mark && <motion.span initial={reducedMotion ? false : { scale: 0.65, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: reducedMotion ? 0 : 0.2 }} aria-hidden="true">{mark === 'X' ? '×' : '○'}</motion.span>}</Button>)}</div> : <>
+              <div className="hands-reveal" aria-label="Round choices">{(['X', 'O'] as const).map(seat => {
+                const visible = Boolean(winner || (isOnline && room?.role === seat));
+                const choice = visible ? game.picks[seat] : null;
+                const name = isOnline ? !room ? 'Player ' + (seat === 'X' ? '1' : '2') : room.role === seat ? 'You' : 'Brother' : mode === 'cpu' ? seat === 'X' ? 'You' : 'Computer' : 'Player ' + (seat === 'X' ? '1' : '2');
+                return <motion.div key={seat} className={['hand-panel', 'player-' + seat.toLowerCase(), winner === seat ? 'hand-winner' : ''].join(' ')} animate={{ borderColor: winner === seat ? '#8b83ff' : '#2b2d40' }} transition={{ duration: reducedMotion ? 0 : 0.25 }}><div className="hand-heading"><span className="player-avatar" aria-hidden="true">{seat === 'X' ? 'P1' : 'P2'}</span><span>{name}</span>{winner === seat && <span className="winner-tag"><Trophy size={12} aria-hidden="true" /> Winner</span>}</div><div className="hand-orbit"><AnimatePresence initial={false} mode="wait"><motion.strong key={choice || (game.submitted[seat] ? 'locked' : 'waiting')} className="hand-visual" initial={reducedMotion ? false : { opacity: 0, scale: 0.75, rotate: -12 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: reducedMotion ? 1 : 0.9 }} transition={{ duration: reducedMotion ? 0 : 0.24 }} aria-hidden="true">{choice ? hands[choice] : game.submitted[seat] ? <LockKeyhole size={40} strokeWidth={1.4} /> : <span className="waiting-hand">?</span>}</motion.strong></AnimatePresence></div><p>{choice ? labels[choice] : game.submitted[seat] ? 'Locked in' : !isOnline || room?.joined ? 'Choosing…' : 'Ready when you are'}</p></motion.div>;
+              })}<span className="versus" aria-hidden="true">VS</span></div>
+              {handoff && !isOnline && !winner ? <Fade className="handoff"><LockKeyhole size={22} aria-hidden="true" /><p>Player 1’s hand is locked.<span>Pass the device to Player 2.</span></p><Button className="primary-button" onClick={() => setHandoff(false)}>Player 2 is ready <ArrowRight size={16} aria-hidden="true" /></Button></Fade> : <><div className="choice-heading"><span>{winner ? 'Round complete' : 'Choose your hand'}</span><span><LockKeyhole size={13} aria-hidden="true" />{winner ? 'Both hands revealed' : 'Locked until both pick'}</span></div><div className="choice-grid" aria-label="Choose your hand">{choices.map(choice => <Button key={choice} hoverScale={1.035} tapScale={0.95} className={['choice-button', isOnline && game.picks[role] === choice ? 'chosen' : ''].join(' ')} disabled={!canPick} onClick={() => pick(choice)}><span className="choice-emoji" aria-hidden="true">{hands[choice]}</span><span className="choice-label">{labels[choice]}</span>{isOnline && game.picks[role] === choice && <Check className="choice-check" size={15} aria-hidden="true" />}</Button>)}</div></>}
             </>}
-          </div> : <div className="local-note"><div className="panel-icon" aria-hidden="true">{mode === 'cpu' ? <Gamepad2 size={20} /> : <Users size={20} />}</div><h2>{mode === 'cpu' ? 'You vs. the computer.' : 'Pass it. Play it.'}</h2><p>{mode === 'cpu' ? kind === 'rps' ? 'A random hand. A fair match. How long can you keep your streak?' : 'Think you can beat the computer? Take X and find out.' : kind === 'rps' ? 'Pick a hand, then pass the device. Your choice stays hidden.' : 'One board, two players. Take turns playing X and O.'}</p></div>}
-        </section>
-
-        <section className="match-panel" aria-label="Match score">
-          <div className="scoreboard-title"><p className="section-label">THE SCORE SO FAR</p><span>THIS MATCH</span></div>
-          <div className="scoreboard">
-            {(['X', 'ties', 'O'] as const).map(key => <div key={key} className={'score-panel score-' + (key === 'ties' ? 'tie' : key.toLowerCase())}><div className="score-heading"><span>{key === 'ties' ? 'Ties' : isOnline ? !room ? 'Player ' + (key === 'X' ? '1' : '2') : room.role === key ? 'You' : 'Brother' : mode === 'cpu' ? key === 'X' ? 'You' : 'Computer' : 'Player ' + (key === 'X' ? '1' : '2')}</span><span className="score-symbol" aria-hidden="true">{key === 'X' ? '×' : key === 'O' ? '○' : '='}</span></div><strong key={game.scores[key]}>{game.scores[key]}</strong><span className="score-caption">{key === 'ties' ? 'DRAWS' : 'WINS'}</span></div>)}
-          </div>
-        </section>
-      </aside>
-
-      <section className={['game-card', kind, winner ? 'round-finished' : ''].join(' ')} aria-label={gameNames[kind] + ' game'}>
-        <div className="stage-heading"><div><p className="section-label">A LITTLE RIVALRY, A LOT OF FUN</p><h2>{kind === 'rps' ? <>Rock. Paper.<br /><span>Scissors.</span></> : <>Make your<br /><span>next move.</span></>}</h2></div><span className="round-label"><span>ROUND</span>{String(game.round).padStart(2, '0')}</span></div>
-        {isOnline && room && pending && <div className="switch-prompt" role="status"><p>{pending.ready.includes(room.role) ? 'Waiting for your brother to switch to ' + gameNames[pending.kind] + '.' : 'Your brother wants to play ' + gameNames[pending.kind] + '.'} A switch starts a new match with fresh scores.</p><div>{!pending.ready.includes(room.role) && <button className="primary-button" disabled={busy || !connected} onClick={() => void act('switch', { kind: pending.kind })}>Switch game <ArrowRight size={16} aria-hidden="true" /></button>}<button className="secondary-button" disabled={busy || !connected} onClick={() => void act('switch', { kind })}>{pending.ready.includes(room.role) ? 'Cancel switch' : 'Keep this game'}</button></div></div>}
-        {error && <p className="error-message" role="alert">{error}</p>}
-
-        <div className="play-area">
-          <div className={['turn-row', winner ? 'result-row' : ''].join(' ')}><div className={'turn-indicator ' + (winner === 'tie' ? 'tie' : winner === 'O' ? 'o' : '')} aria-hidden="true">{winner ? winner === 'tie' ? '=' : <Check size={20} /> : symbol}</div><div><p className="section-label">{winner ? 'ROUND OVER' : kind === 'rps' ? 'PICK & REVEAL' : 'CURRENT TURN'}</p><p className="status" role="status" aria-live="polite">{status}</p></div></div>
-          {game.kind === 'ttt' ? <div className="board" aria-label="Tic-tac-toe board">{game.board.map((mark, index) => <button key={index} className={['cell', mark?.toLowerCase() || '', tttResult?.line.includes(index) ? 'winning' : ''].join(' ')} disabled={!playable || Boolean(mark)} aria-label={positions[index] + ', ' + (mark || 'empty')} onClick={() => isOnline ? void act('move', { index }) : setLocal(previous => previous.kind === 'ttt' ? { ...move(previous, previous.turn, index), kind: 'ttt' } : previous)}>{mark && <span aria-hidden="true">{mark === 'X' ? '×' : '○'}</span>}</button>)}</div> : <>
-            <div className="hands-reveal" aria-label="Round choices">{(['X', 'O'] as const).map(seat => {
-              const visible = Boolean(winner || (isOnline && room?.role === seat));
-              const choice = visible ? game.picks[seat] : null;
-              const name = isOnline ? !room ? 'Player ' + (seat === 'X' ? '1' : '2') : room.role === seat ? 'You' : 'Brother' : mode === 'cpu' ? seat === 'X' ? 'You' : 'Computer' : 'Player ' + (seat === 'X' ? '1' : '2');
-              return <div key={seat} className={['hand-panel', 'player-' + seat.toLowerCase(), winner === seat ? 'hand-winner' : '', winner ? 'is-revealed' : ''].join(' ')}><div className="hand-heading"><span className="player-avatar" aria-hidden="true">{seat === 'X' ? '01' : '02'}</span><span>{name}</span>{winner === seat && <span className="winner-tag">WINNER</span>}</div><strong className="hand-visual" key={choice || 'hidden'} aria-hidden="true">{choice ? hands[choice] : game.submitted[seat] ? <LockKeyhole size={46} strokeWidth={1.4} /> : <span className="waiting-hand">?</span>}</strong><p>{choice ? labels[choice] : game.submitted[seat] ? 'Locked in' : 'Choosing…'}</p></div>;
-            })}</div>
-            {handoff && !isOnline && !winner ? <div className="handoff"><LockKeyhole size={20} aria-hidden="true" /><p>Player 1’s choice is hidden. Hand the device to Player 2.</p><button className="primary-button" onClick={() => setHandoff(false)}>Player 2 is ready <ArrowRight size={16} aria-hidden="true" /></button></div> : <><div className="choice-heading"><span>{winner ? 'NICELY PLAYED.' : 'MAKE YOUR PICK'}</span><span><LockKeyhole size={12} aria-hidden="true" />{winner ? 'Both hands revealed' : 'Your hand stays secret'}</span></div><div className="choice-grid" aria-label="Choose your hand">{choices.map(choice => <button key={choice} className={['choice-button', isOnline && game.picks[role] === choice ? 'chosen' : ''].join(' ')} disabled={!canPick} onClick={() => pick(choice)}><span aria-hidden="true">{hands[choice]}</span><span className="choice-label">{labels[choice]}</span><span className="choice-check" aria-hidden="true">{isOnline && game.picks[role] === choice ? <Check size={14} /> : <ArrowRight size={14} />}</span></button>)}</div></>}
-          </>}
-
-          {isOnline ? <button className="next-button" disabled={!winner || busy || ready || !connected} onClick={() => void act('ready')}><RotateCcw size={17} aria-hidden="true" />{ready ? 'Waiting for your brother…' : winner && game.ready.length ? 'Play again — brother is ready' : 'Play again'}</button> : <button className="next-button" disabled={kind === 'rps' && !winner} onClick={advance}><RotateCcw size={17} aria-hidden="true" />Next round</button>}
-        </div>
-        <div className="rules-strip"><span className="rules-label">THE RULES</span><p>{rules}</p></div>
-      </section>
-    </div>
-    <footer className="footer-note"><span>Good games. Better company.</span><span>{isOnline ? <><Wifi size={13} aria-hidden="true" />{room ? connected ? 'Room connected' : 'Reconnecting' : 'Play from anywhere'}</> : <><Users size={13} aria-hidden="true" />{mode === 'cpu' ? 'Just you and a worthy opponent' : 'Two players. One device.'}</>}</span></footer>
-  </main>;
+          </Fade>
+        </AnimatePresence>
+        {isOnline ? <Button className="next-button" disabled={!winner || busy || ready || !connected} onClick={() => void act('ready')}><RotateCcw size={17} aria-hidden="true" />{ready ? 'Waiting for your brother…' : winner && game.ready.length ? 'Play again — brother is ready' : 'Play again'}</Button> : <Button className="next-button" disabled={kind === 'rps' && !winner} onClick={advance}><RotateCcw size={17} aria-hidden="true" />Next round</Button>}
+      </div>
+      <p className="rules-strip">{rules}</p>
+    </section>
+    <footer className="footer-note"><span>Two games. One good rivalry.</span><span>{isOnline ? <><Wifi size={13} aria-hidden="true" />{room ? connected ? 'Room connected' : 'Reconnecting' : 'Invite links last 7 days'}</> : <><Users size={13} aria-hidden="true" />{mode === 'cpu' ? 'Computer mode' : 'Same-device mode'}</>}</span></footer>
+  </main></MotionConfig>;
 }
